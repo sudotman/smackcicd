@@ -11,7 +11,7 @@ import shutil
 import signal
 import subprocess
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
 # The Windows service runs under pythonw.exe, which has no console. Without this
@@ -69,17 +69,17 @@ SCRUB = Scrubber()
 
 
 def utc_now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def iso(dt=None):
     dt = dt or utc_now()
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def stamp(dt=None):
     dt = dt or utc_now()
-    return dt.astimezone(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return dt.astimezone(UTC).strftime("%Y%m%d-%H%M%S")
 
 
 def run(cmd, cwd=None, env=None, timeout=None, on_line=None, check=True, tail=300,

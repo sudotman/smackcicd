@@ -36,6 +36,12 @@ dev = ["pytest>=7", "ruff>=0.5"]
 [project.scripts]
 smackcicd = "smackcicd.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/sudotman/smackcicd"
+Documentation = "https://github.com/sudotman/smackcicd/tree/main/docs"
+Issues = "https://github.com/sudotman/smackcicd/issues"
+Changelog = "https://github.com/sudotman/smackcicd/blob/main/CHANGELOG.md"
+
 [tool.setuptools.dynamic]
 version = { attr = "smackcicd.__version__" }
 

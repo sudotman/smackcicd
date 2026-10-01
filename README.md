@@ -34,7 +34,7 @@ and a Gitea, Forgejo or GitHub repository, and want packaging to be boring.
 On the build machine, with Python 3.11+, git and Unreal Engine installed:
 
 ```bash
-pip install .           # from a checkout of this repository
+pip install git+https://github.com/sudotman/smackcicd.git
 smackcicd init          # detects what it can and asks for the rest
 smackcicd doctor        # checks this machine can build
 smackcicd service install

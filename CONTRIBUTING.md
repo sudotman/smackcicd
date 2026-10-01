@@ -21,7 +21,7 @@ that way are the easiest to accept.
 ## Development
 
 ```bash
-git clone <this repository> && cd smackcicd
+git clone https://github.com/sudotman/smackcicd.git && cd smackcicd
 python -m venv .venv && . .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 pytest
