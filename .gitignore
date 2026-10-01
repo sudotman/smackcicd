@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# A runner home created while trying the tool inside the checkout.
+# Never commit secrets.env or a keystore.
+smackcicd.toml
+secrets.env
+*.keystore
+*.jks
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store

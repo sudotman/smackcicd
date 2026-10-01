@@ -1,0 +1,550 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CI</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9; --panel: #ffffff; --sunken: #f1f3f5; --line: #e1e4e8; --line-2: #d0d5db;
+    --text: #1c2128; --muted: #636c76; --faint: #8b949e;
+    --accent: #0b6bcb; --accent-ink: #ffffff;
+    --ok: #1a7f37; --ok-bg: #dcfce5; --bad: #c4262e; --bad-bg: #fde8e8;
+    --run: #9a6700; --run-bg: #fff4cc; --idle: #57606a; --idle-bg: #eceff2;
+    --queue: #0b6bcb; --queue-bg: #ddeefe;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+    --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116; --panel: #161b22; --sunken: #1c2129; --line: #262c36; --line-2: #343b47;
+      --text: #e6edf3; --muted: #9aa4af; --faint: #6e7781;
+      --accent: #4c9bff; --accent-ink: #0b1220;
+      --ok: #4ac26b; --ok-bg: #12301c; --bad: #ff7b72; --bad-bg: #3a1618;
+      --run: #e3b341; --run-bg: #3a2c08; --idle: #9aa4af; --idle-bg: #232a33;
+      --queue: #79b8ff; --queue-bg: #12263d;
+      --shadow: 0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .mono { font-family: var(--mono); font-size: 12.5px; }
+  .muted { color: var(--muted); }
+  .faint { color: var(--faint); }
+
+  header { position: sticky; top: 0; z-index: 5; background: var(--panel);
+           border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1180px; margin: 0 auto; padding: 10px 20px; display: flex;
+         align-items: center; gap: 12px; flex-wrap: wrap; }
+  .brand { font-weight: 650; font-size: 15px; letter-spacing: -.01em; }
+  .brand small { font-weight: 500; color: var(--muted); margin-left: 8px; font-size: 13px; }
+  .grow { flex: 1; }
+  .state { display: inline-flex; align-items: center; gap: 7px; font-size: 13px;
+           font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .state.idle { color: var(--idle); background: var(--idle-bg); }
+  .state.building { color: var(--run); background: var(--run-bg); }
+  .state.building .dot { animation: pulse 1.4s ease-in-out infinite; }
+  .state.paused, .state.down { color: var(--bad); background: var(--bad-bg); }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 18px 20px 60px; }
+  .banner { border: 1px solid var(--run); background: var(--run-bg); color: var(--text);
+            border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 13px; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+           gap: 10px; margin-bottom: 18px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          padding: 10px 14px; box-shadow: var(--shadow); min-width: 0; }
+  .stat .k { font-size: 11.5px; color: var(--muted); font-weight: 550; }
+  .stat .v { font-size: 17px; font-weight: 650; margin-top: 1px; white-space: nowrap;
+             overflow: hidden; text-overflow: ellipsis; }
+  .stat .s { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden;
+             text-overflow: ellipsis; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+           box-shadow: var(--shadow); margin-bottom: 18px; overflow: hidden; }
+  .panel > .hd { display: flex; align-items: center; gap: 10px; padding: 11px 16px;
+                 border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .panel > .hd h2 { margin: 0; font-size: 14px; font-weight: 650; }
+  .panel > .bd { padding: 14px 16px; }
+
+  button, .btn { font: inherit; font-size: 13px; font-weight: 550; line-height: 1;
+                 display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px;
+                 border-radius: 7px; border: 1px solid var(--line-2); background: var(--panel);
+                 color: var(--text); cursor: pointer; white-space: nowrap; }
+  button:hover:not(:disabled), .btn:hover { background: var(--sunken); text-decoration: none; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.dl { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
+  .btn.dl:hover { filter: brightness(1.08); background: var(--accent); }
+  .btn.dl small { font-weight: 500; opacity: .85; }
+  button.danger { color: var(--bad); border-color: var(--bad); background: transparent; }
+  button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  button.ghost:hover:not(:disabled) { color: var(--text); }
+  input[type=text], input[type=password] { font: inherit; font-size: 13px; padding: 6px 10px;
+           border-radius: 7px; border: 1px solid var(--line-2); background: var(--panel);
+           color: var(--text); }
+
+  .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px;
+          border-radius: 999px; text-transform: capitalize; }
+  .pill.success { color: var(--ok); background: var(--ok-bg); }
+  .pill.failure, .pill.failed { color: var(--bad); background: var(--bad-bg); }
+  .pill.running { color: var(--run); background: var(--run-bg); }
+  .pill.queued { color: var(--queue); background: var(--queue-bg); }
+  .pill.cancelled, .pill.interrupted, .pill.skipped { color: var(--idle); background: var(--idle-bg); }
+  .tagchip { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 5px;
+             background: var(--sunken); color: var(--muted); border: 1px solid var(--line); }
+
+  .now { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .now .t { font-size: 16px; font-weight: 650; }
+  pre.log { margin: 0; background: #0d1117; color: #c9d1d9; padding: 12px 14px;
+            font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word;
+            max-height: 360px; overflow: auto; }
+  details.log > summary { cursor: pointer; padding: 9px 16px; font-size: 13px; color: var(--muted);
+                          border-top: 1px solid var(--line); }
+
+  .job { border-top: 1px solid var(--line); }
+  .job:first-child { border-top: 0; }
+  .jobhd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 12px 16px 6px; }
+  .jobhd .tag { font-weight: 650; font-size: 14.5px; }
+  .prow { display: grid; grid-template-columns: 96px 100px 76px 1fr auto; align-items: center;
+          gap: 12px; padding: 7px 16px 7px 28px; }
+  .job .prow:last-child { padding-bottom: 12px; }
+  .prow:hover { background: var(--sunken); }
+  .prow .plat { font-weight: 600; }
+  .prow .dls { display: flex; gap: 8px; flex-wrap: wrap; }
+  .prow .err { color: var(--bad); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis;
+               white-space: nowrap; min-width: 0; }
+  .empty { padding: 30px 16px; text-align: center; color: var(--muted); }
+  @media (max-width: 720px) {
+    .prow { grid-template-columns: 1fr auto; padding-left: 16px; }
+    .prow .dur, .prow > span:nth-child(2) { display: none; }
+  }
+
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 20; }
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100vw);
+            background: var(--bg); z-index: 21; overflow: auto; box-shadow: -8px 0 24px rgba(0,0,0,.18);
+            border-left: 1px solid var(--line); }
+  .drawer .dhd { position: sticky; top: 0; background: var(--panel); border-bottom: 1px solid var(--line);
+                 padding: 14px 18px; display: flex; align-items: center; gap: 12px; z-index: 1; }
+  .drawer .dhd h3 { margin: 0; font-size: 16px; font-weight: 650; }
+  .drawer .dbd { padding: 16px 18px 40px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 18px;
+           margin-bottom: 16px; }
+  .facts .k { font-size: 11.5px; color: var(--muted); font-weight: 550; }
+  .facts .v { font-size: 13.5px; overflow-wrap: anywhere; }
+  .errbox { border: 1px solid var(--bad); background: var(--bad-bg); border-radius: 8px;
+            padding: 10px 12px; margin-bottom: 16px; font: 12.5px/1.5 var(--mono);
+            white-space: pre-wrap; overflow-wrap: anywhere; }
+  h4 { font-size: 13px; margin: 20px 0 8px; font-weight: 650; }
+  .deliv { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .drow { display: grid; grid-template-columns: 1fr 76px 84px auto; gap: 12px; align-items: center;
+          padding: 9px 14px; border-top: 1px solid var(--line); }
+  .drow:first-child { border-top: 0; }
+  .drow .n { font-weight: 600; overflow-wrap: anywhere; }
+  .drow .sha { font: 11.5px var(--mono); color: var(--faint); cursor: copy; }
+  .drow .sz { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  details.grp { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+                margin-bottom: 6px; }
+  details.grp > summary { cursor: pointer; padding: 8px 12px; }
+  details.grp > summary .cnt { float: right; color: var(--muted); }
+  details.grp ul { list-style: none; margin: 0; padding: 4px 12px 10px; max-height: 300px; overflow: auto; }
+  details.grp li { display: flex; gap: 10px; font: 12px/1.7 var(--mono); }
+  details.grp li a { flex: 1; overflow-wrap: anywhere; }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 30;
+           background: var(--text); color: var(--panel); padding: 8px 14px; border-radius: 8px;
+           font-size: 13px; }
+  footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 10px; }
+</style>
+
+<header>
+  <div class="bar">
+    <span class="brand"><span id="brandname">CI</span><small id="host"></small></span>
+    <span id="state" class="state idle"><span class="dot"></span><span id="statetext">Connecting</span></span>
+    <span class="grow"></span>
+    <span id="auth"></span>
+  </div>
+</header>
+
+<main>
+  <div id="banners"></div>
+  <div class="stats" id="stats"></div>
+
+  <section class="panel" id="nowpanel" hidden>
+    <div class="hd"><h2>Building now</h2><span class="grow"></span>
+      <button id="pause" class="ghost">Pause runner</button>
+      <button id="cancel" class="danger">Cancel build</button></div>
+    <div class="bd now">
+      <span class="t" id="nowtag"></span>
+      <span id="nowplat" class="pill running"></span>
+      <span id="nowtime" class="muted"></span>
+    </div>
+    <details class="log" id="livewrap" open>
+      <summary>Live log</summary>
+      <pre class="log" id="livelog"></pre>
+    </details>
+  </section>
+
+  <section class="panel">
+    <div class="hd"><h2>Builds</h2><span class="muted" id="buildcount"></span><span class="grow"></span>
+      <button id="pauseidle" class="ghost" hidden>Pause runner</button></div>
+    <div id="jobs"><div class="empty">Loading...</div></div>
+  </section>
+
+  <section class="panel" id="startpanel" hidden>
+    <div class="hd"><h2>Build a tag</h2>
+      <span class="muted" style="font-size:12.5px">Pushing a tag does this on its own; use this to rebuild one, or build with other platforms.</span></div>
+    <div class="bd" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+      <input type="text" id="tag" placeholder="v1.4.2-beta.3" size="22" aria-label="Tag">
+      <span id="platchecks"></span>
+      <button id="start">Queue build</button>
+      <span id="startmsg" class="muted"></span>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
+</main>
+
+<div id="drawerroot"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (k === "text") n.textContent = v;
+    else n.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false)
+    n.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  return n;
+}
+const pill = (s) => el("span", { class: "pill " + (s || ""), text: s || "-" });
+// Element.append() turns null into the text "null"; this skips it.
+function add(parent, ...kids) {
+  for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) parent.append(k);
+  return parent;
+}
+function dur(s) {
+  if (s === null || s === undefined) return "-";
+  if (s < 60) return s + "s";
+  const m = Math.floor(s / 60), h = Math.floor(m / 60);
+  return h ? h + "h " + (m % 60) + "m" : m + "m " + String(s % 60).padStart(2, "0") + "s";
+}
+const parse = (iso) => Date.parse(iso && !/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso + "Z" : iso);
+function ago(iso) {
+  if (!iso) return "";
+  const t = parse(iso);
+  if (isNaN(t)) return iso;
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + " min ago";
+  if (s < 86400) return Math.floor(s / 3600) + " h ago";
+  if (s < 7 * 86400) return Math.floor(s / 86400) + " d ago";
+  return new Date(t).toLocaleDateString();
+}
+const local = (iso) => iso ? new Date(parse(iso)).toLocaleString() : "";
+function toast(msg) {
+  const t = el("div", { class: "toast", text: msg }); document.body.append(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
+// ---- auth ----------------------------------------------------------------
+let actionsEnabled = false, paused = false, lastData = null;
+const token = () => { try { return localStorage.getItem("smackcicd-token") || ""; } catch (e) { return ""; } };
+async function post(action, body) {
+  const res = await fetch("/api/actions/" + action, { method: "POST",
+    headers: { "Content-Type": "application/json", "X-Smackcicd-Token": token() },
+    body: JSON.stringify(body || {}) });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new Error("Admin token missing or wrong - set it top right");
+  if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+  return data;
+}
+let authSig = "";
+function renderAuth(data) {
+  const sig = data.actionsEnabled + "|" + !!token() + "|" + data.actionsDisabledReason;
+  if (sig === authSig) return;
+  authSig = sig;
+  const box = $("auth"); box.textContent = "";
+  if (!data.actionsEnabled) {
+    box.append(el("span", { class: "muted", style: "font-size:12.5px",
+      text: "Read-only - " + (data.actionsDisabledReason || "actions disabled") }));
+  } else if (token()) {
+    box.append(el("span", { class: "muted", style: "font-size:12.5px", text: "Admin token saved" }),
+      el("button", { class: "ghost", onclick: () => {
+        try { localStorage.removeItem("smackcicd-token"); } catch (e) {} authSig = ""; renderAuth(data); } }, "Forget"));
+  } else {
+    const inp = el("input", { type: "password", placeholder: "Admin token", size: 16, "aria-label": "Admin token" });
+    box.append(inp, el("button", { onclick: () => {
+      try { localStorage.setItem("smackcicd-token", inp.value.trim()); } catch (e) {}
+      toast("Token saved in this browser"); authSig = ""; renderAuth(data); } }, "Save"));
+  }
+}
+
+// ---- overview --------------------------------------------------------------
+let liveKey = "", liveOffset = 0, lastJobsSig = "";
+async function refresh() {
+  let data;
+  try { data = await (await fetch("/api/overview")).json(); }
+  catch (e) { setState("down", "Runner unreachable"); return; }
+  lastData = data;
+  const h = data.health, c = data.control, run = c.running;
+  actionsEnabled = data.actionsEnabled; paused = c.paused;
+  const name = (h.project || "Build") + " CI";
+  document.title = (run ? "● " : "") + name;
+  $("brandname").textContent = name;
+  $("host").textContent = h.host;
+  if (paused) setState("paused", "Paused");
+  else if (run) setState("building", "Building " + run.tag);
+  else setState("idle", "Idle");
+  renderAuth(data);
+
+  const b = $("banners"); b.textContent = "";
+  (h.warnings || []).forEach((w) => b.append(el("div", { class: "banner", text: w })));
+
+  const q = data.queue.filter((j) => j.status === "queued");
+  const st = $("stats"); st.textContent = "";
+  const stat = (k, v, s, title) => el("div", { class: "stat", title: title || s || "" },
+    el("div", { class: "k", text: k }), el("div", { class: "v", text: v }),
+    s ? el("div", { class: "s", text: s }) : null);
+  st.append(
+    stat("Queue", q.length ? q.length + " waiting" : "Empty", q.length ? q.map((j) => j.tag).join(", ") : "nothing waiting"),
+    stat("Engine", "UE " + h.engine.version,
+         (h.engine.available || []).length > 1 ? "also installed: " + h.engine.available.join(", ") : h.engine.path),
+    stat("Free space", h.workspace.freeGiB + " / " + h.drop.freeGiB + " GiB",
+         "workspace / drop - " + h.drop.buildFolders + " of " + h.drop.retain + " builds kept"),
+    h.poll === false
+      ? stat("Last tag check", "Polling off", "builds start from the webhook only")
+      : stat("Last tag check", c.lastPollAt ? ago(c.lastPollAt) : "-",
+             c.lastPollError ? "failed: " + c.lastPollError : "checks every " + h.pollSeconds + "s", local(c.lastPollAt)),
+    h.androidEnabled
+      ? stat("Android signing", h.signing === "release-keystore" ? "Release key" : "Debug key", "runner up " + dur(c.uptimeSeconds))
+      : stat("Platforms", (h.platformsEnabled || []).join(", ") || "none", "runner up " + dur(c.uptimeSeconds)),
+  );
+
+  $("nowpanel").hidden = !run;
+  $("pauseidle").hidden = !!run || !actionsEnabled;
+  for (const id of ["pause", "pauseidle"]) {
+    $(id).textContent = paused ? "Resume runner" : "Pause runner"; $(id).disabled = !actionsEnabled; }
+  $("cancel").disabled = !actionsEnabled || !run;
+  if (run) {
+    $("nowtag").textContent = run.tag;
+    $("nowplat").textContent = run.platform || "preparing";
+    $("nowtime").textContent = dur(run.elapsedSeconds) + (run.cancelling ? " - cancelling..." : "");
+    const key = run.buildNumber + "/" + run.platform;
+    if (key !== liveKey) { liveKey = key; liveOffset = 0; $("livelog").textContent = ""; }
+    if ($("livewrap").open) await tailLive();
+  } else liveKey = "";
+
+  $("startpanel").hidden = !actionsEnabled;
+  $("foot").textContent = (h.repo || "") + " - smackcicd " + h.toolVersion;
+  renderPlatformChecks(h.platformsEnabled || [], h.platformsDefault || []);
+
+  const sig = JSON.stringify([data.builds, actionsEnabled]);
+  if (sig !== lastJobsSig) { lastJobsSig = sig; renderJobs(data.builds); }
+}
+let platSig = "";
+function renderPlatformChecks(enabled, defaults) {
+  const sig = enabled.join(",") + "|" + defaults.join(",");
+  if (sig === platSig) return;
+  platSig = sig;
+  const box = $("platchecks"); box.textContent = "";
+  for (const p of enabled) {
+    box.append(el("label", { style: "margin-right:10px" },
+      el("input", { type: "checkbox", class: "plat", value: p, checked: defaults.includes(p) }), " " + p));
+  }
+}
+function setState(cls, text) { $("state").className = "state " + cls; $("statetext").textContent = text; }
+
+async function tailLive() {
+  try {
+    const url = "/api/log?build=live&offset=" + liveOffset + (liveOffset ? "" : "&tail=1");
+    const r = await (await fetch(url)).json();
+    if (r.missing || !r.text) { liveOffset = r.offset || liveOffset; return; }
+    const pre = $("livelog"), stuck = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 40;
+    pre.textContent += r.text;
+    if (pre.textContent.length > 400000) pre.textContent = pre.textContent.slice(-300000);
+    if (stuck) pre.scrollTop = pre.scrollHeight;
+    liveOffset = r.offset;
+  } catch (e) {}
+}
+$("livewrap").addEventListener("toggle", () => { if ($("livewrap").open) tailLive(); });
+
+async function confirmDelete(ids, what, onDone) {
+  let plan;
+  try { plan = await post("delete", { buildIds: ids, dryRun: true }); }
+  catch (e) { toast(e.message); return; }
+  const NL = "\n";
+  const files = plan.paths.length
+    ? "This frees " + plan.size + " by removing:" + NL + plan.paths.map((p) => "  " + p).join(NL)
+    : "Its files belong to another build of the same tag, so only the history entry goes.";
+  const msg = "Delete " + what + "?" + NL + NL + files + NL + NL
+    + "The release on your forge is not touched, and the tag will not rebuild by itself.";
+  if (!confirm(msg)) return;
+  try {
+    const r = await post("delete", { buildIds: ids });
+    toast("Deleted " + r.builds.length + " build" + (r.builds.length === 1 ? "" : "s")
+      + (r.paths.length ? ", freed " + r.size : "")
+      + (r.failed && r.failed.length ? " (" + r.failed.length + " paths could not be removed)" : ""));
+    if (onDone) onDone();
+    lastJobsSig = ""; refresh();
+  } catch (e) { toast(e.message); }
+}
+
+function renderJobs(builds) {
+  const box = $("jobs"); box.textContent = "";
+  $("buildcount").textContent = builds.length ? builds.length + " recent" : "";
+  if (!builds.length) {
+    box.append(el("div", { class: "empty", text: "No builds yet. Push a tag like v1.2.3-alpha.1 and it appears here." }));
+    return;
+  }
+  const groups = [];
+  for (const b of builds) {
+    const key = b.job_id ? "j" + b.job_id : "t" + b.tag + b.started_at;
+    let g = groups.find((x) => x.key === key);
+    if (!g) groups.push(g = { key, tag: b.tag, builds: [] });
+    g.builds.push(b);
+  }
+  for (const g of groups) {
+    const first = g.builds[g.builds.length - 1];
+    box.append(el("div", { class: "job" },
+      el("div", { class: "jobhd" },
+        el("span", { class: "tag", text: g.tag }),
+        el("span", { class: "tagchip", text: (first.configuration || "-").toLowerCase() }),
+        first.commit_sha ? el("span", { class: "mono faint", text: first.commit_sha.slice(0, 9) }) : null,
+        el("span", { class: "faint", title: local(first.started_at), text: ago(first.started_at) }),
+        el("span", { class: "grow" }),
+        actionsEnabled ? el("button", { class: "ghost", title: "Queue this tag again",
+          onclick: async () => {
+            try { await post("retry", { buildId: first.id }); toast("Queued " + g.tag); refresh(); }
+            catch (e) { toast(e.message); } } }, "Rebuild") : null,
+        actionsEnabled ? el("button", { class: "ghost", title: "Delete every attempt shown in this card",
+          onclick: () => confirmDelete(g.builds.map((b) => b.id),
+            g.tag + " (" + g.builds.map((b) => "#" + b.build_number + " " + b.platform).join(", ") + ")") }, "Delete") : null),
+      [...g.builds].reverse().map((b) => el("div", { class: "prow" },
+        el("span", { class: "plat", text: b.platform }),
+        el("span", {}, pill(b.status)),
+        el("span", { class: "dur muted", text: dur(b.duration_s) }),
+        b.status === "success" && b.downloads && b.downloads.length
+          ? el("span", { class: "dls" }, b.downloads.map((d) =>
+              el("a", { class: "btn dl", href: d.url, download: d.name, title: d.name },
+                "⬇ " + (d.kind === "zip" ? "Download zip" : d.kind) + " ", el("small", { text: d.size }))))
+          : b.supersededBy && b.status === "success"
+            ? el("span", { class: "faint", text: "files replaced by build #" + b.supersededBy })
+            : el("span", { class: "err", title: b.error || "",
+                           text: b.status === "success" ? "" : (b.error || "") }),
+        el("button", { onclick: () => openDetail(b.id) }, "Details")))));
+  }
+}
+
+// ---- detail drawer -----------------------------------------------------------
+async function openDetail(id) {
+  const root = $("drawerroot"); root.textContent = "";
+  const esc = (e) => { if (e.key === "Escape") close(); };
+  const close = () => { root.textContent = ""; document.removeEventListener("keydown", esc); };
+  document.addEventListener("keydown", esc);
+  const body = el("div", { class: "dbd" }, el("div", { class: "muted", text: "Loading..." }));
+  const title = el("h3", { text: "Build" });
+  root.append(el("div", { class: "scrim", onclick: close }),
+    el("aside", { class: "drawer", role: "dialog", "aria-label": "Build details" },
+      el("div", { class: "dhd" }, title, el("span", { class: "grow" }),
+        el("button", { class: "ghost", onclick: close, "aria-label": "Close" }, "✕")),
+      body));
+  let d;
+  try { d = await (await fetch("/api/build?id=" + id)).json(); }
+  catch (e) { body.textContent = "Could not load this build."; return; }
+  const b = d.build, f = d.facts;
+  title.textContent = b.tag + " - " + b.platform;
+  body.textContent = "";
+  const fact = (k, v) => v ? el("div", {}, el("div", { class: "k", text: k }), el("div", { class: "v", text: v })) : null;
+  add(body, 
+    el("div", { style: "display:flex; gap:10px; align-items:center; margin-bottom:14px" },
+      pill(b.status), el("span", { class: "muted", text: "Build #" + b.build_number + " - " + (b.configuration || "") })),
+    el("div", { class: "facts" },
+      fact("Started", local(b.started_at)), fact("Duration", dur(b.duration_s)),
+      fact("Engine", f.engine ? "UE " + f.engine : ""),
+      fact("Commit", b.commit_sha ? b.commit_sha.slice(0, 12) : ""),
+      fact("Author", f.author), fact("Branches", (f.branches || []).join(", ")),
+      fact("Signing", f.signing && f.signing !== "n/a" ? f.signing : ""),
+      fact("Log", f.errorLines !== null && f.errorLines !== undefined
+                  ? f.errorLines + " errors, " + f.warningLines + " warnings" : "")),
+    f.subject ? el("div", { class: "muted", style: "margin:-6px 0 16px", text: "“" + f.subject + "”" }) : null,
+    b.error ? el("div", { class: "errbox", text: b.error }) : null,
+    d.supersededBy ? el("div", { class: "banner", text: "This tag was rebuilt as build #" + d.supersededBy
+      + ", which overwrote these files. Open that build to download." }) : null);
+
+  add(body, el("h4", { text: "Downloads" }));
+  if (d.deliverables.length) {
+    add(body, el("div", { class: "deliv" }, d.deliverables.map((a) => el("div", { class: "drow" },
+      el("div", {}, el("div", { class: "n", text: a.name }),
+        a.sha256 ? el("div", { class: "sha", title: "Click to copy SHA-256",
+          text: "sha256 " + a.sha256.slice(0, 16) + "…",
+          onclick: () => { if (navigator.clipboard) navigator.clipboard.writeText(a.sha256); toast("SHA-256 copied"); } }) : null),
+      el("span", {}, el("span", { class: "tagchip", text: a.type })),
+      el("span", { class: "sz", text: a.size }),
+      a.url ? el("a", { class: "btn" + (a.type === "archive" || a.type === "apk" ? " dl" : ""),
+                        href: a.url, download: a.name }, "⬇ Download")
+            : el("span", { class: "faint", text: d.supersededBy ? "replaced" : "deleted" })))));
+  } else {
+    add(body, el("div", { class: "muted",
+      text: b.status === "success" ? "No packaged files recorded." : "Nothing was packaged." }));
+  }
+
+  if (d.tree.fileCount) {
+    add(body, el("h4", {}, "All files ", el("span", { class: "muted", style: "font-weight:400",
+      text: d.tree.fileCount + " files, " + d.tree.size + " - the staged package, for debugging" })));
+    for (const g of d.tree.groups) {
+      add(body, el("details", { class: "grp" },
+        el("summary", {}, el("span", { class: "mono", text: g.name }),
+          el("span", { class: "cnt", text: g.fileCount + " files - " + g.size })),
+        el("ul", {}, g.files.map((x) => el("li", {},
+            el("a", { href: x.url, download: true, text: x.path }), el("span", { class: "faint", text: x.size }))),
+          g.truncated ? el("li", { class: "faint", text: "... " + (g.fileCount - g.files.length) + " more" }) : null)));
+    }
+  }
+
+  if (actionsEnabled && b.status !== "running") {
+    add(body, el("div", { style: "margin-top:22px; padding-top:14px; border-top:1px solid var(--line); display:flex; align-items:center; gap:12px" },
+      el("button", { class: "danger", onclick: () => confirmDelete([b.id], "build #" + b.build_number + " (" + b.tag + " " + b.platform + ")", close) },
+        "Delete this build"),
+      el("span", { class: "muted", style: "font-size:12.5px", text: "Removes it from the history, and its files once nothing else uses them." })));
+  }
+  add(body, el("h4", {}, "Log",
+    d.logUrl ? el("a", { href: d.logUrl, style: "font-weight:400; margin-left:10px", text: "download full log" }) : null));
+  const pre = el("pre", { class: "log", style: "border-radius:8px", text: "Loading..." });
+  add(body, pre);
+  try {
+    const log = await (await fetch("/api/log?build=" + b.id + "&tail=1")).json();
+    pre.textContent = log.missing ? "Log not found."
+      : (log.size > log.text.length ? "... showing the last part - download the full log above\n\n" : "") + log.text;
+    pre.scrollTop = pre.scrollHeight;
+  } catch (e) { pre.textContent = "Could not load the log."; }
+}
+
+// ---- actions -------------------------------------------------------------------
+$("cancel").onclick = async () => {
+  if (!confirm("Stop the running build and everything it started?")) return;
+  try { await post("cancel"); toast("Cancelling..."); refresh(); } catch (e) { toast(e.message); }
+};
+for (const id of ["pause", "pauseidle"]) $(id).onclick = async () => {
+  try { await post("pause", { paused: !paused }); refresh(); } catch (e) { toast(e.message); }
+};
+$("start").onclick = async () => {
+  const platforms = [...document.querySelectorAll(".plat:checked")].map((e) => e.value);
+  $("startmsg").textContent = "";
+  try {
+    const r = await post("build", { tag: $("tag").value.trim(), platforms });
+    $("startmsg").textContent = "Queued " + r.queued + " (" + r.configuration + ", " + r.platforms.join(" + ") + ")";
+    $("tag").value = ""; refresh();
+  } catch (e) { $("startmsg").textContent = e.message; }
+};
+
+refresh();
+setInterval(refresh, 5000);
+</script>
