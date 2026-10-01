@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from . import platforms as platforms_mod
-from .util import run
+from .util import exists, is_dir, run
 
 ERROR_RE = re.compile(r"(?:^|\s)(?:ERROR|Error):(?!\s*0\b)")
 WARNING_RE = re.compile(r"(?:^|\s)(?:WARNING|Warning):")
@@ -43,7 +43,7 @@ class Engine:
         self.root = Path(root)
         batch = "RunUAT.bat" if os.name == "nt" else "RunUAT.sh"
         self.uat = self.root / "Engine" / "Build" / "BatchFiles" / batch
-        if not self.uat.exists():
+        if not exists(self.uat):
             raise EngineError("%s not found under %s" % (batch, self.root))
 
     @property
@@ -226,16 +226,16 @@ def _folder_entries(search_dirs):
     entries = []
     for base in search_dirs:
         base = Path(base)
-        if not base.is_dir():
+        if not is_dir(base):
             continue
-        if (base / "Engine" / "Build" / "BatchFiles").is_dir():
+        if is_dir(base / "Engine" / "Build" / "BatchFiles"):
             entries.append((None, str(base)))
         try:
             children = sorted(base.iterdir())
         except OSError:
             continue
         for child in children:
-            if child.is_dir() and (child / "Engine" / "Build" / "BatchFiles").is_dir():
+            if is_dir(child) and is_dir(child / "Engine" / "Build" / "BatchFiles"):
                 entries.append((None, str(child)))
     return entries
 

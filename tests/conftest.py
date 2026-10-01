@@ -37,3 +37,23 @@ def cfg(home):
 @pytest.fixture
 def log():
     return logging.getLogger("smackcicd.test")
+
+
+def _escape(text):
+    return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
+def pytest_runtest_logreport(report):
+    """On GitHub Actions, surface each failure as an annotation.
+
+    Job logs of public repositories need a signed-in viewer; annotations do
+    not, so this is what makes a red run readable to everyone.
+    """
+    if not (report.failed and os.environ.get("GITHUB_ACTIONS") == "true"):
+        return
+    path, line, _ = report.location
+    detail = str(report.longrepr).splitlines()[-25:]
+    sys.__stdout__.write("\n::error file=%s,line=%d,title=%s::%s\n" % (
+        path.replace("\\", "/"), (line or 0) + 1, _escape(report.nodeid),
+        _escape("\n".join(detail))))
+    sys.__stdout__.flush()

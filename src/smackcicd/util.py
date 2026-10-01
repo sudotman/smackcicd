@@ -199,6 +199,26 @@ def safe_name(text):
     return re.sub(r"[^A-Za-z0-9._+-]", "_", text)
 
 
+def is_dir(path):
+    """Path.is_dir() that says False instead of raising on an unreadable path.
+
+    Path.is_dir() and .exists() raise PermissionError for folders the account
+    cannot read (Linux's /opt has some on CI runners), which would crash
+    discovery scans over system folders.
+    """
+    try:
+        return Path(path).is_dir()
+    except OSError:
+        return False
+
+
+def exists(path):
+    try:
+        return Path(path).exists()
+    except OSError:
+        return False
+
+
 def ensure_dir(path):
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)

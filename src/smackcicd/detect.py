@@ -8,14 +8,14 @@ import re
 from pathlib import Path
 
 from .engines import _fixed_drives
-from .util import capture
+from .util import capture, exists, is_dir
 
 ANDROID_ENV = ("ANDROID_HOME", "ANDROID_SDK_ROOT", "NDKROOT", "NDK_ROOT", "JAVA_HOME")
 
 
 def find_uprojects(root):
     root = Path(root)
-    return sorted(root.glob("*.uproject")) if root.is_dir() else []
+    return sorted(root.glob("*.uproject")) if is_dir(root) else []
 
 
 def git_remote(path):
@@ -32,7 +32,7 @@ def git_remote(path):
 def project_targets_android(workspace):
     """Does the project look like it ships on Android?"""
     workspace = Path(workspace)
-    if (workspace / "Config" / "Android").is_dir() or (workspace / "Build" / "Android").is_dir():
+    if is_dir(workspace / "Config" / "Android") or is_dir(workspace / "Build" / "Android"):
         return True
     engine_ini = workspace / "Config" / "DefaultEngine.ini"
     try:
@@ -73,15 +73,15 @@ def _java_candidates():
             candidates.append(root / "Android" / "Android Studio" / "jbr")
             for vendor in ("Microsoft", "Eclipse Adoptium", "Java", "Zulu", "Amazon Corretto"):
                 base = root / vendor
-                if base.is_dir():
+                if is_dir(base):
                     candidates += sorted((p for p in base.iterdir() if "17" in p.name),
                                          key=_version_key, reverse=True)
     else:
         for base in (Path("/usr/lib/jvm"), Path("/Library/Java/JavaVirtualMachines")):
-            if base.is_dir():
+            if is_dir(base):
                 for path in sorted((p for p in base.iterdir() if "17" in p.name),
                                    key=_version_key, reverse=True):
-                    candidates.append(path / "Contents" / "Home" if (path / "Contents").is_dir()
+                    candidates.append(path / "Contents" / "Home" if is_dir(path / "Contents")
                                       else path)
         candidates.append(Path("/opt/android-studio/jbr"))
     return candidates
@@ -95,18 +95,18 @@ def android_toolchain():
     has to be configured machine-wide.
     """
     sdk = next((p for p in _android_sdk_candidates()
-                if (p / "platform-tools").is_dir() or (p / "build-tools").is_dir()), None)
+                if is_dir(p / "platform-tools") or is_dir(p / "build-tools")), None)
     ndk = None
     for var in ("NDKROOT", "NDK_ROOT"):
-        if os.environ.get(var) and Path(os.environ[var]).is_dir():
+        if os.environ.get(var) and is_dir(os.environ[var]):
             ndk = Path(os.environ[var])
             break
-    if ndk is None and sdk and (sdk / "ndk").is_dir():
-        versions = sorted((p for p in (sdk / "ndk").iterdir() if p.is_dir()),
+    if ndk is None and sdk and is_dir(sdk / "ndk"):
+        versions = sorted((p for p in (sdk / "ndk").iterdir() if is_dir(p)),
                           key=_version_key, reverse=True)
         ndk = versions[0] if versions else None
     java_exe = "java.exe" if os.name == "nt" else "java"
-    java = next((p for p in _java_candidates() if (p / "bin" / java_exe).exists()), None)
+    java = next((p for p in _java_candidates() if exists(p / "bin" / java_exe)), None)
 
     wanted = {}
     if sdk:

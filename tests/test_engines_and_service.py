@@ -46,6 +46,22 @@ def test_pinned_versions_win(cfg, tmp_path, monkeypatch):
     assert engines.discover(cfg)["5.4"].root == pinned
 
 
+def test_unreadable_folders_do_not_crash_discovery(tmp_path, monkeypatch):
+    """Path.is_dir() raises PermissionError on unreadable folders (Linux /opt)."""
+    fake_engine(tmp_path / "Epic" / "UE_5.4", 5, 4)
+    (tmp_path / "Epic" / "locked").mkdir()
+    real_is_dir = Path.is_dir
+
+    def is_dir(self):
+        if "locked" in self.parts:
+            raise PermissionError(13, "Permission denied", str(self))
+        return real_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_dir", is_dir)
+    entries = engines._folder_entries([tmp_path / "Epic", tmp_path / "Epic" / "locked"])
+    assert [Path(p).name for _, p in entries] == ["UE_5.4"]
+
+
 def test_find_engine_by_association_and_guid(cfg, tmp_path, monkeypatch):
     root = fake_engine(tmp_path / "src-build", 5, 5)
     monkeypatch.setattr(engines, "_registry_entries",
