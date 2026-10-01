@@ -1,121 +1,177 @@
+<img src="docs/images/smack.jpg" width="110" alt="a smack dvd cover with ci/cd scrawled across it" align="right" hspace="12" />
+
 # smackcicd
+[turn tmz to smackcicd, huh](https://youtu.be/kPPyUO6m3-4?t=32)
 
-**Push a tag. Get a packaged Unreal Engine build.**
+[![ci](https://github.com/sudotman/smackcicd/actions/workflows/ci.yml/badge.svg)](https://github.com/sudotman/smackcicd/actions/workflows/ci.yml)
+[![license: gpl-3.0](https://img.shields.io/badge/license-gpl--3.0-black.svg)](LICENSE)
 
-smackcicd is a small, self-hosted build runner for Unreal Engine projects. It
+push a tag. get a packaged unreal engine build. <3
+
+smackcicd is a small, self-hosted build runner for unreal engine projects. it
 watches your git server for version tags, builds, cooks and packages the
-project for Windows, Android and Linux, and publishes the result: a release on
+project for windows, android and linux, and publishes the result: a release on
 your forge, commit status, checksums, and one-click download links on its own
 dashboard.
 
-It is built for studios and solo developers who already have a build machine
-and a Gitea, Forgejo or GitHub repository, and want packaging to be boring.
+made for studios and solo devs who already have a build pc and a gitea, forgejo
+or github repo, and just want packaging to be boring. no ci platform, no agents,
+no yaml pipelines, no cloud runners. one python process and the standard
+library.
 
-- **No CI platform needed.** One Python process on the build machine. No agents,
-  no YAML pipelines, no cloud runners, and no runtime dependencies beyond the
-  Python standard library.
-- **Set up by detection, not configuration.** `smackcicd init` finds your
-  Unreal installs (registry, Epic launcher, source builds, the usual folders),
-  the Android SDK/NDK/JDK, the project and the forge, and writes a commented
-  config you can read.
-- **Tag-driven.** `v1.4.2-beta.3` builds Development for every platform;
-  `v1.4.2` builds Shipping; `+android` or `+win` narrows it; `+ue54` picks the
-  engine. See [tag grammar](docs/tags.md).
-- **Gitea, Forgejo and GitHub** (including Enterprise Server): releases, asset
-  upload, commit status and signed webhooks, with polling as a fallback.
-- **A dashboard** with build history, download buttons, logs, rebuild, cancel,
-  pause and delete.
-- **Built from real build-machine scars.** Long paths, UE 5.8's archive layout,
-  multi-GB uploads, incremental plugin builds, a service that survives logoff
-  and crashes. See [troubleshooting](docs/troubleshooting.md).
+<br clear="left" />
 
-## Quickstart
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard-dark.png">
+  <img src="docs/images/dashboard-light.png" alt="the smackcicd dashboard: three tags, each with an android and a windows build. successful builds have download zip and apk buttons with their sizes; a failed windows build shows its blueprint compile error inline.">
+</picture>
 
-On the build machine, with Python 3.11+, git and Unreal Engine installed:
+---
+
+## install
+
+on the build pc, with python 3.11+, git and unreal engine installed:
 
 ```bash
 pip install git+https://github.com/sudotman/smackcicd.git
-smackcicd init          # detects what it can and asks for the rest
-smackcicd doctor        # checks this machine can build
-smackcicd service install
 ```
 
-Then push a tag:
+or from a clone:
 
 ```bash
-git tag -a v0.1.0-alpha.1 -m "first CI build" && git push origin v0.1.0-alpha.1
+pip install -e ".[dev]"
 ```
 
-and open the dashboard that `init` printed (by default
-`http://<build-machine>:9099/`). The tag is picked up within a minute by
-polling, or instantly once you add the webhook (`smackcicd webhook` prints
-what to enter).
+---
 
-## What a build does
+## use it
 
-1. Fetches the tag into a persistent workspace clone and hard-resets onto it,
-   keeping derived data and intermediates so builds stay incremental.
-2. Stamps the version into the project (`ProjectVersion`, and the Android
-   `StoreVersion` / `VersionDisplayName`) and stages a release keystore when
-   one is configured. Both edits are undone afterwards.
-3. Runs `RunUAT BuildCookRun` once per platform (and per engine, for tags that
-   name several), streaming the log to the dashboard.
-4. Collects the packages, zips each platform into one file, and writes
-   `manifest.json` (what was built, from what, with what) and
-   `SHA256SUMS.txt`.
-5. Creates or updates the forge release, attaches the APK and the build
-   record, links the large zips from the release notes, sets commit status,
-   and optionally posts to Slack, Discord, Teams or any URL.
+```bash
+smackcicd init              # finds what it can, asks for the rest
+smackcicd doctor            # checks this machine can actually build
+smackcicd service install   # runs it in the background, from boot
+```
 
-## Commands
+then push a tag:
 
-| Command | What it does |
+```bash
+git tag -a v0.1.0-alpha.1 -m "first ci build" && git push origin v0.1.0-alpha.1
+```
+
+and open the dashboard `init` printed (by default `http://<build-pc>:9099/`).
+the tag gets picked up within a minute by polling, or instantly once you add
+the webhook (`smackcicd webhook` tells you what to paste).
+
+**init** doesn't make you hand-edit paths. it finds your unreal installs (the
+registry, the epic launcher, registered source builds, the usual folders on
+every drive), the android sdk / ndk / jdk, the `.uproject`, your git remote and
+whether it's gitea or github, then writes one commented `smackcicd.toml`.
+**doctor** reads each engine's own android requirements and tells you the exact
+`sdkmanager` command for anything missing. **service install** sets up a
+windows scheduled task with a watchdog, or a systemd unit on linux.
+
+---
+
+## tags
+
+| tag | builds |
 | --- | --- |
-| `smackcicd init` | Detect, ask, and write `smackcicd.toml` and `secrets.env` |
-| `smackcicd doctor` | Check git, the forge, engines, Android SDK pieces, disk, ports |
-| `smackcicd clone` | Create the build workspace clone (`--partial` for huge repos) |
-| `smackcicd service install` | Run in the background: a Windows scheduled task or a systemd user unit |
-| `smackcicd watch` | Run the daemon in the foreground |
-| `smackcicd build <tag>` | Build one tag now, in the foreground |
-| `smackcicd explain <tag>` | Show what a tag would build, without building |
-| `smackcicd tags` | List remote tags and how each would build |
-| `smackcicd status` | Recent builds and the queue |
-| `smackcicd webhook` | What to enter on your forge's webhook page |
+| `v1.4.2` | shipping, default platforms |
+| `v1.4.2-rc.1` | shipping, marked pre-release |
+| `v1.4.2-beta.3` | development |
+| `v1.4.2-alpha.1+android` | development, android only |
+| `v1.4.2-beta.1+win.linux` | windows and linux |
+| `v1.4.2-beta.1+ue54` | built with unreal 5.4 |
+| `v1.4.2-beta.1+ue53.ue54` | built twice, once per engine |
 
-Every command takes `--home <folder>` to pick a runner; a machine can host several.
+`smackcicd explain <tag>` shows what a tag would build without building it.
+the full grammar (and android version codes) is in [docs/tags.md](docs/tags.md).
 
-## Documentation
+---
 
-- [Configuration reference](docs/configuration.md)
-- [Tag grammar](docs/tags.md)
-- [Forges: Gitea, Forgejo, GitHub](docs/forges.md)
-- [Android builds and signing](docs/android.md)
-- [Running as a service](docs/service.md)
-- [The dashboard](docs/dashboard.md)
-- [Troubleshooting](docs/troubleshooting.md)
+## how it works
 
-## Requirements
+1. fetches the tag into a persistent workspace clone and resets onto it,
+   keeping derived data and intermediates so builds stay incremental.
+2. stamps the version into the project (and the android version code), stages
+   a release keystore if you have one, and undoes both afterwards.
+3. runs `RunUAT BuildCookRun` once per platform, streaming the log to the
+   dashboard.
+4. zips each platform into one download, and writes `manifest.json` (what was
+   built, from what, with what) and `SHA256SUMS.txt`.
+5. creates or updates the release on your forge, attaches the apk and the
+   build record, links the big zips from the release notes, sets commit status,
+   and optionally pings slack, discord, teams or any url.
 
-- Python 3.11 or newer (the standard library only).
-- git, plus git-lfs if your repository uses LFS.
-- Unreal Engine 4.27 or 5.x on the build machine. Launcher installs and
-  source builds both work.
-- For Android: the Android SDK, the NDK version your engine asks for, and
-  JDK 17. `doctor` reads your engine's own requirements and tells you exactly
-  which SDK packages are missing.
-- Windows builds Windows, Android and Linux (cross-compile). Linux hosts build
-  Linux and Android.
+---
 
-## Status
+## the dashboard
 
-smackcicd is young. It grew out of a production build machine that packages
-Windows and Meta Quest builds from Gitea tags, and was then generalised.
-Bug reports and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+build history with download buttons, the live log while something builds, and a
+details panel per build: commit, engine, every deliverable with its sha-256, the
+staged files grouped by folder, and the end of the log (where the failure
+usually is). rebuild, cancel, pause and delete with an admin token.
 
-## License
+---
 
-smackcicd is free software, licensed under the
-[GNU General Public License v3.0 or later](LICENSE).
+## commands
 
-Unreal and Unreal Engine are trademarks or registered trademarks of Epic
-Games, Inc. smackcicd is not affiliated with or endorsed by Epic Games.
+| command | what it does |
+| --- | --- |
+| `init` | detect, ask, write the config |
+| `doctor` | check git, the forge, engines, android sdk pieces, disk, ports |
+| `clone` | create the workspace clone (`--partial` for huge repos) |
+| `service install` | background task (windows) or systemd unit (linux) |
+| `watch` | run the daemon in the foreground |
+| `build <tag>` | build one tag right now |
+| `explain <tag>` | what a tag would build |
+| `tags` | remote tags and how each would build |
+| `status` | recent builds and the queue |
+| `webhook` | what to paste on your forge's webhook page |
+
+every command takes `--home <folder>`, so one machine can host several runners.
+
+---
+
+## docs
+
+- [configuration](docs/configuration.md)
+- [tag grammar](docs/tags.md)
+- [forges: gitea, forgejo, github](docs/forges.md)
+- [android builds and signing](docs/android.md)
+- [running as a service](docs/service.md)
+- [the dashboard](docs/dashboard.md)
+- [troubleshooting](docs/troubleshooting.md), every trap this thing has already
+  fallen into, so you don't have to
+
+---
+
+## requirements
+
+- python 3.11+, standard library only
+- git, plus git-lfs if your repo uses lfs
+- unreal engine 4.27 or 5.x on the build pc, launcher or source builds
+- for android: the sdk, the ndk version your engine asks for, and jdk 17
+  (`doctor` lists exactly what's missing)
+- windows hosts build windows, android and linux; linux hosts build linux and
+  android
+
+---
+
+## etymology
+
+the name is a nod to [smack dvd](https://en.wikipedia.org/wiki/Ultimate_Rap_League).
+
+---
+
+## contributing
+
+bug reports and prs welcome. see [CONTRIBUTING.md](CONTRIBUTING.md), and
+[SECURITY.md](SECURITY.md) for anything sensitive.
+
+## license
+
+[gpl-3.0-or-later](LICENSE). free software, keep it that way.
+
+unreal and unreal engine are trademarks of epic games, inc. smackcicd isn't
+affiliated with or endorsed by epic games.
