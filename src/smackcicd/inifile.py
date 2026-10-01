@@ -19,7 +19,10 @@ def set_keys(path, section, values):
     Returns the list of keys that were changed.
     """
     path = Path(path)
-    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    # newline="" keeps \r\n as it is: read_text() would turn it into \n before
+    # we look, and a CRLF file (most Unreal configs) would be rewritten as LF.
+    with open(path, encoding="utf-8-sig", errors="replace", newline="") as handle:
+        text = handle.read()
     newline = "\r\n" if "\r\n" in text else "\n"
     lines = text.splitlines()
 
@@ -64,7 +67,8 @@ def set_keys(path, section, values):
             lines[insert_at:insert_at] = addition
             changed.extend(remaining)
 
-    path.write_text(newline.join(lines) + newline, encoding="utf-8")
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        handle.write(newline.join(lines) + newline)
     return changed
 
 

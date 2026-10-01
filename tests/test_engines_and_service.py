@@ -130,11 +130,19 @@ def test_systemd_unit(cfg):
 
 def test_ini_edits_are_surgical(tmp_path):
     ini = tmp_path / "DefaultEngine.ini"
-    ini.write_text("; keep me\r\n[/Script/A]\r\n+Arr=1\r\nKey=old\r\n\r\n[/Script/B]\r\nX=1\r\n")
+    # Bytes, not write_text(): text mode would turn \r\n into \r\r\n on Windows.
+    ini.write_bytes(b"; keep me\r\n[/Script/A]\r\n+Arr=1\r\nKey=old\r\n\r\n[/Script/B]\r\nX=1\r\n")
     assert set_keys(ini, "/Script/A", {"Key": "new", "Added": "2"}) == ["Key", "Added"]
-    text = ini.read_text()
-    assert "; keep me" in text and "+Arr=1" in text and "\r\n" in ini.read_bytes().decode()
+    raw = ini.read_bytes()
+    assert b"; keep me" in raw and b"+Arr=1" in raw
+    assert raw.count(b"\n") == raw.count(b"\r\n"), "CRLF line endings must survive"
+    assert b"\r\r\n" not in raw
     assert get_key(ini, "/Script/A", "Key") == "new"
     assert get_key(ini, "/Script/A", "Added") == "2"
     set_keys(ini, "/Script/New", {"Z": "3"})
     assert get_key(ini, "/Script/New", "Z") == "3"
+
+    lf = tmp_path / "lf.ini"
+    lf.write_bytes(b"[/Script/A]\nKey=1\n")
+    set_keys(lf, "/Script/A", {"Key": "2"})
+    assert lf.read_bytes() == b"[/Script/A]\nKey=2\n", "LF files stay LF"
